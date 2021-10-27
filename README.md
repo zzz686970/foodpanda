@@ -4,7 +4,9 @@
 ## install python packages
 pip3 install -r requirements.txt
 
-## authenticate with google cloud for application
+## install gcloud sdk and authenticate
+curl https://sdk.cloud.google.com > install.sh
+bash install.sh --disable-prompts
 gcloud auth login 
 
 ## set project
