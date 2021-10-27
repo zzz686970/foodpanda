@@ -1,0 +1,69 @@
+q1:
+  # projectId : ninth-potion-327504
+  # datasetId : foodpanda_home_test
+  # destinationTable : top5_neareast_port_jurong
+  # isPartitioned : FALSE
+  query : CREATE OR REPLACE TABLE `ninth-potion-327504.foodpanda_home_test.top5_neareast_port_jurong`
+          OPTIONS (
+              DESCRIPTION = "Top 5 neareast ports near SG JURONG ISLAND",
+              LABELS = [("question","q1")],
+              EXPIRATION_TIMESTAMP=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 5 DAY)
+          ) AS
+          WITH
+            params AS (
+            SELECT
+              ST_GeogPoint(port_longitude, port_latitude) AS port_geo,
+            FROM
+              `bigquery-public-data.geo_international_ports.world_port_index`
+            WHERE
+              port_name = "JURONG ISLAND"
+              AND country = "SG" ),
+            distance_from_center AS (
+            SELECT
+              DISTINCT port_name,
+              ROUND(ST_Distance(ST_GeogPoint(port_longitude, port_latitude), params.port_geo), 2) AS distance_in_meters,
+              ROW_NUMBER() OVER(ORDER BY ST_Distance(ST_GeogPoint(port_longitude, port_latitude),params.port_geo)) AS rank1
+            FROM
+              `bigquery-public-data.geo_international_ports.world_port_index` a,
+              params
+            WHERE
+              a.port_name != "JURONG ISLAND" QUALIFY rank1 <= 5 )
+          SELECT
+            * EXCEPT(rank1)
+          FROM
+            distance_from_center
+q2:
+  query: CREATE OR REPLACE TABLE `ninth-potion-327504.foodpanda_home_test.largest_country_ports_with_cargo`
+        OPTIONS (
+            DESCRIPTION = "Largest number of ports with cargo_wharf",
+            LABELS = [("question","q2")],
+            EXPIRATION_TIMESTAMP=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 5 DAY)
+        ) AS
+        select country, count(distinct index_number) as port_count
+        from  `bigquery-public-data.geo_international_ports.world_port_index`
+        where  cargo_wharf = true
+        group by 1
+        order by 2 desc 
+        limit 1;
+
+
+q3:
+  query:  CREATE OR REPLACE TABLE `ninth-potion-327504.foodpanda_home_test.neareast_port_for_call`
+          OPTIONS (
+              DESCRIPTION = "neareast port with provisions, water, fuel_oil and diesel for rescue",
+              LABELS = [("question","q3")],
+              EXPIRATION_TIMESTAMP=TIMESTAMP_ADD(CURRENT_TIMESTAMP(), INTERVAL 5 DAY)
+          ) AS
+          with params as (
+              -- long lat
+              select ST_GeogPoint(-38.706256, 32.610982) AS call_geo,
+          )
+          select res.* except(rank1) from (
+                  select country, port_name, port_latitude, port_longitude, row_number() over(order by ST_Distance(ST_GeogPoint(port_longitude, port_latitude), params.call_geo)) AS rank1
+                  from  `bigquery-public-data.geo_international_ports.world_port_index` a, params  
+                  where provisions = true 
+                      and water = true 
+                      and fuel_oil = true 
+                      and diesel = true 
+                  qualify rank1 = 1
+          ) res 
